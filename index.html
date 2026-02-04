@@ -1,2 +1,117 @@
 <!doctype html>
-<html><body>OK</body></html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Galerie d'images</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; }
+    header { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom: 12px; }
+    input { padding: 8px 10px; width: min(520px, 100%); }
+    .muted { color:#666; font-size: 14px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .card { border: 1px solid #e5e5e5; border-radius: 10px; overflow:hidden; background:#fff; }
+    .card img { width:100%; height:160px; object-fit:contain; background:#fafafa; display:block; }
+    .card .name { padding: 8px 10px; font-size: 13px; word-break: break-all; }
+    .card a { color: #111; text-decoration: none; }
+    .btn { padding: 8px 10px; border:1px solid #ddd; border-radius: 8px; background:#f7f7f7; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <header>
+    <h2 style="margin:0">Galerie</h2>
+    <input id="q" placeholder="Rechercher (ex: burger, vip, gbprospero...)" />
+    <button class="btn" id="reload">Recharger</button>
+    <div class="muted" id="info">Chargement…</div>
+  </header>
+
+  <div class="grid" id="grid"></div>
+
+<script>
+(async () => {
+  const owner = "SCORPIO2711";
+  const repo  = "images";
+  const branch = "principal";     // <-- important: ta branche
+  const path = "";               // "" = racine. Mets "assets" si tu ranges tout dans assets/
+
+  const grid = document.getElementById("grid");
+  const info = document.getElementById("info");
+  const q = document.getElementById("q");
+  const reloadBtn = document.getElementById("reload");
+
+  function isImage(name) {
+    return /\.(png|jpg|jpeg|gif|webp|bmp)$/i.test(name);
+  }
+
+  // Construit l'URL GitHub Pages (ton site)
+  function pagesUrl(filePath) {
+    // filePath ex: "280burger.png" ou "assets/001/280burger.png"
+    return `https://${owner.toLowerCase()}.github.io/${repo}/${filePath}`;
+  }
+
+  // Récupère tout le contenu du dossier via l'API GitHub, avec pagination (100 items/page)
+  async function fetchAll() {
+    let page = 1;
+    let all = [];
+    while (true) {
+      const api = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}&per_page=100&page=${page}`;
+      const res = await fetch(api);
+      if (!res.ok) throw new Error("GitHub API error: " + res.status);
+      const data = await res.json();
+
+      // Si GitHub renvoie un objet (au lieu d'un tableau), c'est que path pointe vers un fichier
+      if (!Array.isArray(data)) break;
+
+      all.push(...data);
+
+      // Si moins de 100 éléments, on a fini
+      if (data.length < 100) break;
+      page++;
+      // sécurité anti boucle infinie
+      if (page > 200) break;
+    }
+    return all;
+  }
+
+  let files = [];
+
+  function render() {
+    const term = q.value.trim().toLowerCase();
+    const filtered = files.filter(f => !term || f.name.toLowerCase().includes(term));
+
+    grid.innerHTML = filtered.map(f => {
+      const url = pagesUrl(f.path);
+      return `
+        <div class="card">
+          <a href="${url}" target="_blank" rel="noreferrer">
+            <img loading="lazy" src="${url}" alt="${f.name}">
+          </a>
+          <div class="name"><a href="${url}" target="_blank" rel="noreferrer">${f.name}</a></div>
+        </div>
+      `;
+    }).join("");
+
+    info.textContent = `${filtered.length} image(s) affichée(s) / ${files.length} au total`;
+  }
+
+  async function load() {
+    info.textContent = "Chargement depuis GitHub…";
+    grid.innerHTML = "";
+    try {
+      const data = await fetchAll();
+      files = data.filter(x => x.type === "file" && isImage(x.name));
+      files.sort((a,b) => a.name.localeCompare(b.name));
+      render();
+    } catch (e) {
+      info.textContent = "Erreur: " + e.message;
+    }
+  }
+
+  q.addEventListener("input", render);
+  reloadBtn.addEventListener("click", load);
+
+  await load();
+})();
+</script>
+</body>
+</html>
